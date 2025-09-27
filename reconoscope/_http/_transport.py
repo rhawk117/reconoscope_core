@@ -11,7 +11,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-class URLRejected(ValueError):
+class URLRejectedError(ValueError):
     ...
 
 
@@ -138,13 +138,13 @@ def normalize_client_url(newurl: str) -> httpx.URL:
         url = url.copy_with(scheme="https")
 
     if url.scheme != "https":
-        raise URLRejected(f"Rejected unsupported URL scheme: {url.scheme}")
+        raise URLRejectedError(f"Rejected unsupported URL scheme: {url.scheme}")
 
     if not url.host:
         return url
 
     if host_is_private_literal(url.host):
-        raise URLRejected(f"Rejected private/invalid host: {url.host}")
+        raise URLRejectedError(f"Rejected private/invalid host: {url.host}")
 
     return url.copy_with(host=normalize_idna_host(url.host))
 
@@ -168,3 +168,6 @@ class HttpTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         request.url = normalize_client_url(str(request.url))
         return await self._inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()

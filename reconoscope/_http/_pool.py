@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 
-from reconoscope.http.transport import HttpTransport
+from reconoscope._http._transport import HttpTransport
 
 
 def _base_limits() -> httpx.Limits:
@@ -85,3 +85,9 @@ class HttpClientPool:
 
     async def aclose(self) -> None:
         await self._transport.aclose()
+
+    async def __aenter__(self) -> 'HttpClientPool':
+        return self
+
+    async def __aexit__(self, *args) -> None:
+        await self.aclose()
