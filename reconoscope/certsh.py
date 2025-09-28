@@ -63,7 +63,7 @@ class CertshBackend:
             }
         )
 
-    @http.retry_policy(attempts=3)
+    @http.retry_policy(attempts=5, delay=2.0)
     async def fetchcert(self, domain: str) -> list[dict]:
         params = {
             'q': f'%.{domain}',
