@@ -337,6 +337,11 @@ class ClientConfig:
 
 
 class ReconoscopeClient(httpx.AsyncClient):
+    '''
+    Thin wrapper around httpx.AsyncClient with
+    sensible defaults for Reconoscope use cases
+    and custom middleware/hooks.
+    '''
 
     def __init__(
         self,

@@ -8,8 +8,6 @@ geolocation and organizational data by querying the ipinfo.io API. It processes
 the JSON response into a structured format, returning the IpRecord dataclass
 from the results gathered.
 '''
-
-
 import asyncio
 from reconoscope import http
 import dataclasses as dc
