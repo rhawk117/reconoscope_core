@@ -9,6 +9,7 @@ description = "The core library for Reconoscope OSINT tool"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "beautifulsoup4>=4.14.0",
     "dnspython[async]>=2.8.0",
     "email-validator>=2.3.0",
     "httpx[http2]>=0.28.1",
