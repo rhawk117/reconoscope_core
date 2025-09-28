@@ -99,6 +99,22 @@ class UserAgent:
         browser: Browsers = 'chrome',
         device: Devices = 'windows'
     ) -> str:
+        '''
+        Get a User-Agent string for the specified browser and device.
+
+        Parameters
+        ----------
+        browser : Browsers, optional
+            The browser to use, by default 'chrome'
+        device : Devices, optional
+            The device to use (device may not be the best term),
+            by default 'windows'
+
+        Returns
+        -------
+        str
+            _description_
+        '''
         key = f"{browser}_{device}"
         return cls.Spec.get(key, cls.Spec[key])
 
@@ -133,9 +149,6 @@ def get_socket_options() -> list[tuple]:
     if hasattr(socket, "TCP_KEEPCNT"):
         opts.append((socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5))
 
-    if hasattr(socket, "TCP_USER_TIMEOUT"):
-        opts.append(
-            (socket.IPPROTO_TCP, socket.TCP_USER_TIMEOUT, 30_000))  # 30s
 
     return opts
 
