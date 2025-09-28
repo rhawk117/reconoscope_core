@@ -55,7 +55,7 @@ async def main() -> int:
         print(wmn_result_str(res))
 
     print(
-        'Note: the erros are from sites that have been depracated '
+        'Note: the errors are from sites that have been depracated '
         'or rejected due to SSL verification for the client being enabled'
         'to skip risky sites.'
     )
