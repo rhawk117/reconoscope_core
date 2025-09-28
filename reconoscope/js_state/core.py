@@ -1,3 +1,4 @@
+# WORK IN PROGRESS
 from __future__ import annotations
 import httpx
 import re
@@ -47,6 +48,7 @@ class ParserOptions:
         hydration_selectors: list[str] | None = None,
         page_data_url_patterns: list[str] | None = None
     ) -> Self:
+        global _WINDOW_EXPRESSIONS, _COMMON_SELECTORS, _PAGE_DATA_URL_PATTERNS
         window_regexes = window_regexes or []
         hydration_selectors = hydration_selectors or []
         page_data_url_patterns = page_data_url_patterns or []
