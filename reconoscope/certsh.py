@@ -85,9 +85,9 @@ class CertshBackend:
             subdomains=sorted(subdomains),
         )
 
-    async def search_domains(self, domains: list[str]) -> list[SubdomainResult]:
-        tasks = (
+    async def gather_subdomains(self, domains: list[str]) -> dict[str, SubdomainResult]:
+        results = await asyncio.gather(*(
             self.get_subdomains(domain)
             for domain in domains
-        )
-        return await asyncio.gather(*tasks)
+        ))
+        return {result.domain: result for result in results}
