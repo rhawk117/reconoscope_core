@@ -9,8 +9,7 @@ into a structured format, returning the SubdomainResult dataclass from the
 results gathered.
 '''
 import asyncio
-from reconoscope.api_client import HTTPClient
-from reconoscope._http import retry_policy
+from reconoscope import http
 import dataclasses as dc
 
 @dc.dataclass(slots=True)
@@ -30,6 +29,20 @@ def iter_name_values(name_value: str, domain: str):
             yield hostname
 
 def walk_certsh_response(data: list[dict], domain: str):
+    '''
+    Walk the JSON response from cert.sh and yield subdomains
+    by looking at the `name_value` and `common_name` fields
+    to extract hostnames.
+
+    Parameters
+    ----------
+    data : list[dict]
+    domain : str
+
+    Yields
+    ------
+    str
+    '''
     for entry in data:
         if name_value := entry.get('name_value'):
             yield from iter_name_values(name_value, domain)
@@ -39,18 +52,24 @@ def walk_certsh_response(data: list[dict], domain: str):
                 yield hostname
 
 
-class CertShClient(HTTPClient):
-    headers: dict[str, str] = {
-        'Accept': 'application/json',
-    }
+class CertshBackend:
+    url = 'https://cert.sh'
 
-    @retry_policy()
+    def __init__(self, config: http.ClientConfig | None = None) -> None:
+        self._client = http.ReconoscopeClient(
+            config=config,
+            headers={
+                'Accept': 'application/json',
+            }
+        )
+
+    @http.retry_policy(attempts=3)
     async def fetchcert(self, domain: str) -> list[dict]:
         params = {
             'q': f'%25.{domain}',
             'output': 'json',
         }
-        response = await self._client.get('https://cert.sh', params=params)
+        response = await self._client.get(self.url, params=params)
         response.raise_for_status()
         return response.json()
 

@@ -6,10 +6,39 @@ from __future__ import annotations
 
 import dataclasses as dc
 from typing import Literal, TypedDict
+import urllib
+import urllib.parse
 
-import httpx
 
 WMNMethods = Literal["GET", "POST"]
+
+
+
+def normalize_url(site: WhatsMyNameSite, account: str) -> str:
+    """
+    Replace the account placeholder in the given template with the actual
+    account name, although it should be in f-string format, this sometimes
+    causes issues with curly braces in URLs.
+
+    Parameters
+    ----------
+    template : str
+        The template string containing the placeholder.
+    account : str
+        The account name to replace the placeholder with.
+
+    Returns
+    -------
+    str
+        The resulting string with the placeholder replaced.
+    """
+    username = account
+    if site.options.strip_bad_char:
+        username = username.replace(site.options.strip_bad_char, '')
+
+    encoded = urllib.parse.quote(username, safe='')
+    return site.entry.uri_check.replace('{account}', encoded)
+
 
 
 @dc.dataclass(slots=True)
@@ -105,38 +134,67 @@ class WhatsMyNameSite:
         '''
         return self.options.headers.get(hdr_name)
 
+    def get_url(self, account: str) -> str:
+        '''
+        Get the URL to check for the given account name.
 
-@dc.dataclass(slots=True)
-class WMNRequestParts:
-    '''
-    A request to send built from a WhatsMyNameSite and account name.
-    '''
-    method: WMNMethods
-    url: str
-    headers: dict[str, str] = dc.field(default_factory=dict)
-    json_payload: dict | None = None
-    content_bytes: bytes | None = None
+        Parameters
+        ----------
+        account : str
 
-    def stream(self, client: httpx.AsyncClient):
+        Returns
+        -------
+        str
+        '''
+        return normalize_url(self, account)
 
-        if self.method == "GET":
-            return client.stream(
-                method=self.method,
-                url=self.url,
-                headers=self.headers,
-            )
 
-        if self.json_payload is not None:
-            return client.stream(
-                method=self.method,
-                url=self.url,
-                headers=self.headers,
-                json=self.json_payload,
-            )
+    def get_pretty_url(self, account: str) -> str | None:
+        '''
+        Get the pretty URL for the given account name.
 
-        return client.stream(
-            method=self.method,
-            url=self.url,
-            headers=self.headers,
-            content=self.content_bytes,
+        Parameters
+        ----------
+        account : str
+
+        Returns
+        -------
+        str | None
+            The pretty url if set in the site options
+        '''
+        if not self.options.uri_pretty:
+            return None
+        return normalize_url(self, account)
+
+    def get_body(self, account: str) -> str | None:
+        '''
+        Get the body to send with a POST request for the given account name.
+
+        Parameters
+        ----------
+        account : str
+
+        Returns
+        -------
+        str | None
+            The body to send, or None if not a POST request.
+        '''
+        if not self.options.post_body:
+            return None
+        return self.options.post_body.replace('{account}', account)
+
+    @property
+    def is_content_type_json(self) -> bool:
+        '''
+        Check if the site expects or returns JSON content.
+
+        Returns
+        -------
+        bool
+        '''
+        content_type = self.get_header('Content-Type') or (
+            self.get_header('content-type')
         )
+        return content_type is not None and 'application/json' in content_type.lower()
+
+

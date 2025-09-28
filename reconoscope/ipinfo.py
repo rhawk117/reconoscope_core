@@ -11,8 +11,7 @@ from the results gathered.
 
 
 import asyncio
-from reconoscope.api_client import HTTPClient
-from reconoscope._http import retry_policy
+from reconoscope import http
 import dataclasses as dc
 
 
@@ -38,21 +37,48 @@ class IpRecord:
         return f"https://maps.google.com/?q={self.location}"
 
 
-class IPInfoClient(HTTPClient):
-    base_url: str = 'https://ipinfo.io'
-    headers: dict[str, str] = {
-        'Accept': 'application/json',
-    }
+class IPInfoSearch:
+    base_url = 'https://ipinfo.io'
 
-    @retry_policy()
-    async def fetch(self, ip: str) -> dict:
+    def __init__(
+        self,
+        config: http.ClientConfig | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        self._client = http.ReconoscopeClient(
+            base_url=self.base_url,
+            config=config,
+            headers={
+                'Accept': 'application/json',
+                **(headers or {}),
+            }
+        )
+
+
+    @http.retry_policy(attempts=3)
+    async def get_json(self, ip: str) -> dict:
         response = await self._client.get(f'/{ip}/json')
         response.raise_for_status()
         return response.json()
 
     async def get_ip_record(self, ip: str) -> IpRecord:
+        '''
+        Fetch the IP information for the given IP address.
 
-        data = await self.fetch(ip)
+        Parameters
+        ----------
+        ip : str
+
+        Returns
+        -------
+        IpRecord
+
+        Raises
+        ------
+        ValueError
+            If the IP address is a bogon address.
+        '''
+        data = await self.get_json(ip)
         if data.get('bogon'):
             raise ValueError(f"{ip} is a bogon address")
 
@@ -69,14 +95,21 @@ class IPInfoClient(HTTPClient):
 
         return IpRecord(**data)
 
-    async def collect_records(self, *ips: str) -> dict[str, IpRecord]:
+    async def get_records(self, *ips: str) -> dict[str, IpRecord]:
+        '''
+        Collect IP records for multiple IP addresses concurrently.
 
+        Returns
+        -------
+        dict[str, IpRecord]
+        '''
         results = await asyncio.gather(
             *(self.get_ip_record(ip) for ip in ips),
+            return_exceptions=True
         )
         records: dict[str, IpRecord] = {}
         for record in results:
-            if isinstance(record, Exception):
+            if isinstance(record, BaseException):
                 continue
             records[record.ip] = record
 

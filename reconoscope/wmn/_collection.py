@@ -9,7 +9,8 @@ from typing import NamedTuple, TypedDict
 
 import httpx
 
-from reconoscope._http import retry_policy
+from reconoscope import http
+from reconoscope.http import retry_policy
 from reconoscope.wmn._schema import WhatsMyNameEntry, WhatsMyNameOptions, WhatsMyNameSite
 
 log = logging.getLogger(__name__)
@@ -258,3 +259,106 @@ def create_wmn_collection(
     )
 
 
+@http.retry_policy(attempts=3)
+async def fetch_wmn_schema(
+    client: http.ReconoscopeClient | httpx.AsyncClient,
+    url: str
+) -> WhatsMyNameSchema:
+    """
+    Fetch the WhatsMyName JSON schema from a URL.
+
+    Parameters
+    ----------
+    url : str | None, optional
+        The URL to fetch the schema from, by default None
+        (uses the default WMN URL)
+    client : httpx.AsyncClient
+        The HTTPX client to use for the request.
+
+    Returns
+    -------
+    WhatsMyNameSchema
+        The fetched schema.
+
+    Raises
+    ------
+    httpx.HTTPError
+        If the request fails.
+    ValueError
+        If the response is not valid JSON or does not conform to the schema.
+    """
+
+    response = await client.get(url, timeout=15)
+    response.raise_for_status()
+
+    try:
+        data = response.json()
+        if not isinstance(data, dict):
+            raise ValueError('Response JSON is not an object')
+        return data  # type: ignore
+    except Exception as exc:
+        raise ValueError(f'Failed to parse WhatsMyName JSON: {exc}') from exc
+
+
+def load_wmn_json_schema(pathname: str) -> WhatsMyNameSchema:
+    """
+    Load the WhatsMyName JSON schema from a local file.
+
+    Parameters
+    ----------
+    pathname : str
+        The path to the local JSON file.
+
+    Returns
+    -------
+    WhatsMyNameSchema
+        The loaded schema.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
+    ValueError
+        If the file is not valid JSON or does not conform to the schema.
+    """
+
+    json_string = Path(pathname).read_text(pathname)
+
+    try:
+        return json.loads(json_string)
+    except Exception as exc:
+        raise ValueError(f'Failed to load WhatsMyName JSON: {exc}') from exc
+
+
+async def fetch_wmn_collection(
+    client: httpx.AsyncClient,
+    *,
+    url: str,
+    rule_set: WMNRuleSet | None = None,
+) -> WMNCollection:
+    """
+    Fetch and build a WMNCollection from a URL.
+
+    Parameters
+    ----------
+    client : httpx.AsyncClient
+        The HTTPX client to use for the request.
+    url : str, optional
+        The URL to fetch the schema from, by default _WMN_DEFAULT_URL
+    rule_set : WMNRuleSet | None, optional
+        An optional rule set to filter sites, by default None
+
+    Returns
+    -------
+    WMNCollection
+        The fetched collection.
+
+    Raises
+    ------
+    httpx.HTTPError
+        If the request fails.
+    ValueError
+        If the response is not valid JSON or does not conform to the schema.
+    """
+    schema = await fetch_wmn_schema(client, url)
+    return create_wmn_collection(schema, rule_set)
