@@ -1,7 +1,11 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "reconoscope-core"
+name = "reconoscope"
 version = "0.1.0"
-description = "Add your description here"
+description = "The core library for Reconoscope OSINT tool"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,3 +14,9 @@ dependencies = [
     "httpx[http2]>=0.28.1",
     "phonenumbers>=9.0.15",
 ]
+
+[tool.uv]
+package = true
+
+[tool.build.targets.wheel]
+packages = ["reconoscope"]

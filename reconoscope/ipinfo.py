@@ -18,7 +18,6 @@ class IpRecord:
     """
     The results from an IP address lookup.
     """
-
     ip: str
     city: str | None = None
     country: str | None = None
@@ -91,7 +90,7 @@ class IPInfoSearch:
             else:
                 data[key] = value
 
-        return IpRecord(**data)
+        return IpRecord(**kwargs)
 
     async def get_records(self, *ips: str) -> dict[str, IpRecord]:
         '''

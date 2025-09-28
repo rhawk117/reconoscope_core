@@ -82,7 +82,7 @@ class retry_policy:
             except self._HTTPX_ERRORS as exc:
                 if attempt_no == self.attempts:
                     raise NoAttemptsLeftError(
-                        f"Failed after {self.attempts} attempts"
+                        f"Failed after {self.attempts} attempts: {exc}"
                     ) from exc
                 last_exc = exc
                 await asyncio.sleep(self.get_timeout(attempt_no))
@@ -90,7 +90,7 @@ class retry_policy:
                 raise
 
         raise NoAttemptsLeftError(
-            f"Failed after {self.attempts} attempts"
+            f"Failed after {self.attempts} attempts: {last_exc}"
         ) from last_exc
 
     def __call__(

@@ -53,7 +53,7 @@ def walk_certsh_response(data: list[dict], domain: str):
 
 
 class CertshBackend:
-    url = 'https://cert.sh'
+    url = 'https://crt.sh/'
 
     def __init__(self, config: http.ClientConfig | None = None) -> None:
         self._client = http.ReconoscopeClient(
@@ -66,7 +66,7 @@ class CertshBackend:
     @http.retry_policy(attempts=3)
     async def fetchcert(self, domain: str) -> list[dict]:
         params = {
-            'q': f'%25.{domain}',
+            'q': f'%.{domain}',
             'output': 'json',
         }
         response = await self._client.get(self.url, params=params)
