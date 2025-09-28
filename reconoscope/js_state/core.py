@@ -1,5 +1,7 @@
 # WORK IN PROGRESS
 from __future__ import annotations
+import asyncio
+import pprint
 import httpx
 import re
 import logging
@@ -155,10 +157,12 @@ def get_script_tag_details(script_tag: Tag) -> ScriptDetails:
 
     return details
 
-class WindowJSON(NamedTuple):
+class _WindowJSON(NamedTuple):
     var_name: str
     json: dict | list
     variable_type: Literal['hydration', 'inline']
+
+
 
 def iter_window_blobs(window_regexes: list[re.Pattern], text: str):
     for pattern in window_regexes:
@@ -169,7 +173,7 @@ def iter_window_blobs(window_regexes: list[re.Pattern], text: str):
                 logger.debug('Could not parse window.%s: %s', var_name, error)
                 continue
             variable_type = 'hydration' if is_dunder(var_name) else 'inline'
-            yield WindowJSON(
+            yield _WindowJSON(
                 var_name,
                 parsed_data,
                 variable_type
@@ -207,7 +211,7 @@ async def get_text(client: httpx.AsyncClient, url: str) -> str:
         logger.error(f"Failed to fetch {url}: {e}")
         raise
 
-class ClientsideParser:
+class JavascriptParser:
     def __init__(
         self,
         client: httpx.AsyncClient,
@@ -267,10 +271,85 @@ class ClientsideParser:
 
 
 
+def render_js_page_state(state: JavascriptPageState) -> str:
+    lines = [
+        f'URL: {state.url}',
+        f'Status: {"OK" if state.ok else "Failed"}',
+        f'Total Scripts: {state.total_scripts}',
+        '',
+        '--- JSON Script Blobs ---',
+    ]
+    for script_type, blobs in state.json_script_blobs.items():
+        lines.append(f'  {script_type}: {len(blobs)} blobs')
+        for blob_id, data in blobs.items():
+            keys = ', '.join(sorted(json_utils.flatten_dict(data)))
+            lines.append(f'    - {blob_id}: {len(keys.split(", "))} keys ({keys})')
+
+    lines.append('')
+    lines.append('--- Hydration State ---')
+    for var_name, data in state.hydration.items():
+        keys = ', '.join(sorted(json_utils.flatten_dict(data)))
+        lines.append(f'  - {var_name}: {len(keys.split(", "))} keys ({keys})')
+
+        format = pprint.pformat(data, indent=4, width=80)
+        input('Press enter to see hydration data preview')
+        print(format)
 
 
 
+    lines.append('')
+    lines.append('--- Inline JSON Patterns ---')
+    for var_name, data in state.inline_json.items():
+        keys = ', '.join(sorted(json_utils.flatten_dict(data)))
+        lines.append(f'  - {var_name}: {len(keys.split(", "))} keys ({keys})')
+        fmt = pprint.pformat(data, indent=4, width=80)
+        input('Press enter to see inline JSON data preview')
+        print(fmt)
 
+    lines.append('')
+    lines.append('--- Page Data URLs ---')
+    for url in state.page_data_urls:
+        lines.append(f'  - {url}')
+
+    lines.append('')
+    lines.append('--- Script Tag Details ---')
+    for detail in state.scripts:
+        status = 'Parsed' if detail.parse_success else f'Error: {detail.parse_error}'
+        keys = ', '.join(sorted(detail.data_keys)) if detail.data_keys else 'N/A'
+        lines.append(
+            f'  ID: {detail.tag_id or "N/A"}\nType: {detail.tag_type or "N/A"}, \n'
+            f'Length: {detail.content_length}\n Status: {status}\n Keys: {keys}'
+        )
+
+    return '\n'.join(lines)
+
+
+
+async def main() -> int:
+    import sys
+    if len(sys.argv) < 2:
+        url = input('Enter a URL to scan: ').strip()
+    else:
+        url = sys.argv[1].strip()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        parser = ClientsideParser(client)
+        try:
+            state = await parser.check_url(url)
+        except Exception as exc:
+            print(f'Error checking URL, check your network connection {exc}')
+            return 1
+
+    print(render_js_page_state(state))
+    return 0
+
+
+
+if __name__ == '__main__':
+    import sys
+    sys.exit(
+        asyncio.run(main())
+    )
 
 
 
