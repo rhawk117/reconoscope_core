@@ -90,11 +90,11 @@ def browser_like_ssl_context() -> ssl.SSLContext:
 
     set_ciphersuites = getattr(ctx, "set_ciphersuites", None)
     if callable(set_ciphersuites):
-        # TLS 1.3
+        # for tls 1.3
         with contextlib.suppress(ssl.SSLError):
             set_ciphersuites(":".join(TLS_1_3_CIPHERS))
 
-    #  TLS 1.2
+    # for tls 1.2
     ctx.set_ciphers(":".join(TLS_1_2_CIPHERS))
 
     if hasattr(ctx, "set_ecdh_curve"):
@@ -102,7 +102,7 @@ def browser_like_ssl_context() -> ssl.SSLContext:
             ctx.set_ecdh_curve("X25519")
         except ssl.SSLError:
             with contextlib.suppress(ssl.SSLError):
-                ctx.set_ecdh_curve("prime256v1")  # P-256
+                ctx.set_ecdh_curve("prime256v1")  
 
     return ctx
 
@@ -126,12 +126,6 @@ def normalize_idna_host(host: str) -> str:
 
 
 def normalize_client_url(newurl: str) -> httpx.URL:
-    """
-    - Upgrade http -> https
-    - Only allow https
-    - Reject private/loopback literals
-    - Normalize host to IDNA ASCII
-    """
     url = httpx.URL(newurl)
 
     if url.scheme == "http":
