@@ -1,4 +1,13 @@
+'''
+**reconoscope.ipinfo**
+-----------------
 
+The IP address information lookup client using the ipinfo.io service.
+When provided with an IP address, the IPInfoClient fetches associated
+geolocation and organizational data by querying the ipinfo.io API. It processes
+the JSON response into a structured format, returning the IpRecord dataclass
+from the results gathered.
+'''
 
 
 import asyncio

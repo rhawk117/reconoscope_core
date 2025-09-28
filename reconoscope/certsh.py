@@ -1,4 +1,13 @@
+'''
+**reconoscope.certsh**
 
+The CertSh client for querying subdomains from https://cert.sh.
+
+When provided with a domain name, the CertShClient fetches associated
+subdomains by querying the CertSh service. It processes the JSON response
+into a structured format, returning the SubdomainResult dataclass from the
+results gathered.
+'''
 import asyncio
 from reconoscope.api_client import HTTPClient
 from reconoscope._http import retry_policy
