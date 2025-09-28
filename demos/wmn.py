@@ -54,6 +54,12 @@ async def main() -> int:
     for res in hits:
         print(wmn_result_str(res))
 
+    print(
+        'Note: the erros are from sites that have been depracated '
+        'or rejected due to SSL verification for the client being enabled'
+        'to skip risky sites.'
+    )
+
     return 0
 
 if __name__ == '__main__':
