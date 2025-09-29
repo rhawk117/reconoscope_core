@@ -1,7 +1,5 @@
 # WORK IN PROGRESS
 from __future__ import annotations
-import asyncio
-import pprint
 import httpx
 import re
 import logging
@@ -10,7 +8,7 @@ from typing import Any, Literal, NamedTuple, Self
 from bs4 import BeautifulSoup, ResultSet, Tag
 from urllib.parse import urljoin
 from reconoscope.js_state import json_utils
-
+from reconoscope import http
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,8 +80,77 @@ class ScriptDetails:
     data_keys: set[str] = field(default_factory=set)
 
 
+def parse_script_json(tags: ResultSet[Tag], type_: str) -> dict[str, dict]:
+    results = {}
+    for i, script in enumerate(tags):
+        content = script.string or script.get_text() or ""
+
+        script_id = script.attrs.get('id') or script.attrs.get('data-id')
+        if not script_id:
+            script_id = f'{type_}_{i+1}'
+
+        parsed_data, error = json_utils.try_loads(content)
+        if parsed_data:
+            results[script_id] = parsed_data
+
+    return results
+
 @dataclass(slots=True)
-class JavascriptPageState:
+class JSONBlobs:
+    ld_blobs: dict[str, dict] = field(default_factory=dict)
+    application_blobs: dict[str, dict] = field(default_factory=dict)
+
+
+    @classmethod
+    def from_soup(cls, tags: ResultSet[Tag]) -> Self:
+
+
+        return cls(
+            ld_blobs=ld_json,
+            application_blobs=application_json
+        )
+
+
+@dataclass(slots=True)
+class Meatdata:
+    title: str | None = None
+    description: str | None = None
+    keywords: list[str] = field(default_factory=list)
+    author: str | None = None
+
+    @classmethod
+    def from_soup(cls, soup: BeautifulSoup) -> Self:
+        title = soup.title.string if soup.title else None
+        description = None
+        keywords = []
+        author = None
+
+        desc_tag = soup.find('meta', attrs={'name': 'description'})
+        if desc_tag and 'content' in desc_tag.attrs:
+            description = desc_tag['content']
+
+        keywords_tag = soup.find('meta', attrs={'name': 'keywords'})
+        if keywords_tag and 'content' in keywords_tag.attrs:
+            keywords = [
+                kw.strip()
+                for kw in keywords_tag['content'].split(',')
+                if kw.strip()
+            ]
+
+        author_tag = soup.find('meta', attrs={'name': 'author'})
+        if author_tag and 'content' in author_tag.attrs:
+            author = author_tag['content']
+
+        return cls(
+            title=title,
+            description=description,
+            keywords=keywords,
+            author=author
+        )
+
+
+@dataclass(slots=True)
+class PageState:
     '''
     Represents the extracted JavaScript state from a web page.
     Attributes
@@ -111,12 +178,25 @@ class JavascriptPageState:
     '''
     url: str
     ok: bool
-    json_script_blobs: dict[str, dict[str, Any]]
     hydration: dict[str, Any]
     page_data_urls: list[str]
+    blobs: JSONBlobs = field(default_factory=JSONBlobs)
+    anchors: list[str] = field(default_factory=list)
     scripts: list[ScriptDetails] = field(default_factory=list)
     inline_json: dict[str, Any] = field(default_factory=dict)
+    metadata: Meatdata = field(default_factory=Meatdata)
     total_scripts: int = 0
+
+
+
+def get_anchors(base_url: str, soup: BeautifulSoup) -> list[str]:
+    anchors = []
+    for a in soup.find_all('a', href=True):
+        href = a['href']
+        absolute_url = urljoin(base_url, href)
+        anchors.append(absolute_url)
+    return anchors
+
 
 def is_dunder(var_name: str) -> bool:
     return var_name.startswith('__') and var_name.endswith('__')
@@ -167,7 +247,7 @@ class _WindowJSON(NamedTuple):
 def iter_window_blobs(window_regexes: list[re.Pattern], text: str):
     for pattern in window_regexes:
         for match in pattern.finditer(text):
-            var_name, json_blob = match
+            var_name, json_blob = match.groups()
             parsed_data, error = json_utils.try_loads(json_blob)
             if not parsed_data:
                 logger.debug('Could not parse window.%s: %s', var_name, error)
@@ -189,19 +269,6 @@ def collect_page_data_urls(page_data_url_patterns: list[re.Pattern], text: str, 
     return list(dict.fromkeys(urls))
 
 
-def parse_json_script(tags: ResultSet[Tag], type_: str) -> dict[str, dict]:
-    results = {}
-    for i, script in enumerate(tags):
-        content = script.string or script.get_text() or ""
-
-        script_id: str = script.get('id') or f'{type_}-JSON[{i}]' # type: ignore
-
-        parsed_data, error = json_utils.try_loads(content)
-        if parsed_data:
-            results[script_id] = parsed_data
-
-    return results
-
 async def get_text(client: httpx.AsyncClient, url: str) -> str:
     try:
         r = await client.get(url)
@@ -214,25 +281,19 @@ async def get_text(client: httpx.AsyncClient, url: str) -> str:
 class JavascriptParser:
     def __init__(
         self,
-        client: httpx.AsyncClient,
+        *,
+        client: http.ReconoscopeClient,
         options: ParserOptions | None = None,
     ) -> None:
         self.options = options or ParserOptions.create()
         self.client = client
 
-    async def check_url(self, url: str) -> JavascriptPageState:
+    async def check_url(self, url: str) -> PageState:
         text = await get_text(self.client, url)
         soup = BeautifulSoup(text, "html.parser")
         all_scripts = soup.find_all('script')
 
-        ld_json = parse_json_script(
-            soup.select('script[type="application/ld+json"]'),
-            'LD'
-        )
-        json_scripts = parse_json_script(
-            soup.select('script[type="application/json"]'),
-            'application'
-        )
+
         hydration: dict[str, Any] = {}
         for selector in self.options.hydration_selectors:
             id, content = json_utils.get_hydrated_json(soup, selector=selector)
@@ -255,101 +316,19 @@ class JavascriptParser:
             for script in all_scripts
         ]
         total_scripts = len(all_scripts)
-        return JavascriptPageState(
+        return PageState(
             url=url,
             ok=True,
-            json_script_blobs={
-                'ld': ld_json,
-                'application': json_scripts
-            },
+            blobs=JSONBlobs.from_soup(soup),
+            anchors=get_anchors(url, soup),
             hydration=hydration,
             page_data_urls=page_data_urls,
             scripts=script_details,
             inline_json=inline_patterns,
-            total_scripts=total_scripts
+            total_scripts=total_scripts,
+            metadata=Meatdata.from_soup(soup)
         )
 
-
-
-def render_js_page_state(state: JavascriptPageState) -> str:
-    lines = [
-        f'URL: {state.url}',
-        f'Status: {"OK" if state.ok else "Failed"}',
-        f'Total Scripts: {state.total_scripts}',
-        '',
-        '--- JSON Script Blobs ---',
-    ]
-    for script_type, blobs in state.json_script_blobs.items():
-        lines.append(f'  {script_type}: {len(blobs)} blobs')
-        for blob_id, data in blobs.items():
-            keys = ', '.join(sorted(json_utils.flatten_dict(data)))
-            lines.append(f'    - {blob_id}: {len(keys.split(", "))} keys ({keys})')
-
-    lines.append('')
-    lines.append('--- Hydration State ---')
-    for var_name, data in state.hydration.items():
-        keys = ', '.join(sorted(json_utils.flatten_dict(data)))
-        lines.append(f'  - {var_name}: {len(keys.split(", "))} keys ({keys})')
-
-        format = pprint.pformat(data, indent=4, width=80)
-        input('Press enter to see hydration data preview')
-        print(format)
-
-
-
-    lines.append('')
-    lines.append('--- Inline JSON Patterns ---')
-    for var_name, data in state.inline_json.items():
-        keys = ', '.join(sorted(json_utils.flatten_dict(data)))
-        lines.append(f'  - {var_name}: {len(keys.split(", "))} keys ({keys})')
-        fmt = pprint.pformat(data, indent=4, width=80)
-        input('Press enter to see inline JSON data preview')
-        print(fmt)
-
-    lines.append('')
-    lines.append('--- Page Data URLs ---')
-    for url in state.page_data_urls:
-        lines.append(f'  - {url}')
-
-    lines.append('')
-    lines.append('--- Script Tag Details ---')
-    for detail in state.scripts:
-        status = 'Parsed' if detail.parse_success else f'Error: {detail.parse_error}'
-        keys = ', '.join(sorted(detail.data_keys)) if detail.data_keys else 'N/A'
-        lines.append(
-            f'  ID: {detail.tag_id or "N/A"}\nType: {detail.tag_type or "N/A"}, \n'
-            f'Length: {detail.content_length}\n Status: {status}\n Keys: {keys}'
-        )
-
-    return '\n'.join(lines)
-
-
-
-async def main() -> int:
-    import sys
-    if len(sys.argv) < 2:
-        url = input('Enter a URL to scan: ').strip()
-    else:
-        url = sys.argv[1].strip()
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        parser = ClientsideParser(client)
-        try:
-            state = await parser.check_url(url)
-        except Exception as exc:
-            print(f'Error checking URL, check your network connection {exc}')
-            return 1
-
-    print(render_js_page_state(state))
-    return 0
-
-
-
-if __name__ == '__main__':
-    import sys
-    sys.exit(
-        asyncio.run(main())
-    )
 
 
 

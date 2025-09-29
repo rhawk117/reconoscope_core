@@ -1,7 +1,9 @@
 from reconoscope.js_state.core import (
     ParserOptions,
     ScriptDetails,
-    JavascriptPageState,
+    PageState,
+    Meatdata,
+    JSONBlobs,
     get_script_tag_details,
     JavascriptParser,
 )
@@ -9,7 +11,9 @@ from reconoscope.js_state.core import (
 __all__ = [
     'ParserOptions',
     'ScriptDetails',
-    'JavascriptPageState',
+    'PageState',
+    'Meatdata',
+    'JSONBlobs',
     'get_script_tag_details',
     'JavascriptParser',
 ]

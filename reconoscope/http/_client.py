@@ -347,6 +347,7 @@ class ReconoscopeClient(httpx.AsyncClient):
         self,
         base_url: str | None = None,
         *,
+        auth: httpx.Auth | None = None,
         headers: dict[str, str] | None = None,
         config: ClientConfig | None = None,
     ) -> None:
@@ -365,6 +366,7 @@ class ReconoscopeClient(httpx.AsyncClient):
         super().__init__(
             base_url=base_url or '',
             transport=transport,
+            auth=auth,
             limits=self._config.limits,
             timeout=self._config.timeout,
             headers=all_headers,
