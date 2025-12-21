@@ -3,21 +3,25 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "reconoscope"
+name = "aiointel"
 version = "0.1.0"
 description = "The core library for Reconoscope OSINT tool"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.14.0",
-    "dnspython[async]>=2.8.0",
+    "dnspython>=2.8.0",
     "email-validator>=2.3.0",
     "httpx[http2]>=0.28.1",
+    "msgspec>=0.19.0",
     "phonenumbers>=9.0.15",
+    "pydantic>=2.12.3",
+    "ua-generator>=2.0.19",
+    "user-agents>=2.2.0",
 ]
 
 [tool.uv]
 package = true
 
 [tool.build.targets.wheel]
-packages = ["reconoscope"]
+packages = ["aiointel"]

@@ -1,4 +1,4 @@
-from reconoscope.js_state.core import (
+from aiointel.website.core import (
     ParserOptions,
     ScriptDetails,
     PageState,

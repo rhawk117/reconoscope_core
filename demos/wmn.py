@@ -1,6 +1,6 @@
 import sys
 import asyncio
-from reconoscope import wmn, http
+from aiointel import wmn, http
 
 
 
@@ -25,8 +25,11 @@ async def main() -> int:
 
     backend = wmn.UsernameScanner(
         client_config=http.ClientConfig(
-            http2=False
-        )
+            http2=False,
+            trust_env=True,
+        ),
+        chunk_size=50,
+        concurrency_per_process=20,
     )
 
     collection = await backend.get_collection()

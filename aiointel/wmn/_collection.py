@@ -3,15 +3,16 @@ from __future__ import annotations
 import dataclasses as dc
 import json
 import logging
-from collections.abc import Iterator
 from pathlib import Path
-from typing import NamedTuple, TypedDict
+from typing import TYPE_CHECKING, NamedTuple, TypedDict
 
 import httpx
 
-from reconoscope import http
-from reconoscope.http import retry_policy
-from reconoscope.wmn._schema import WhatsMyNameEntry, WhatsMyNameOptions, WhatsMyNameSite
+from aiointel import http
+from aiointel.wmn._schema import WhatsMyNameEntry, WhatsMyNameOptions, WhatsMyNameSite
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ class WMNRuleSet:
         cat = site_json.get('cat', '')
         if self.include_categories and cat not in self.include_categories:
             return False
+
         if self.exclude_categories and cat in self.exclude_categories:
             return False
 
@@ -171,13 +173,9 @@ class WMNCollection:
         Iterator[WhatsMyNameSite]
         """
 
-        if auto_discard:
-            iterator = self._auto_discard_iterator
-        else:
-            iterator = self._basic_iterator
+        iterator = self._auto_discard_iterator if auto_discard else self._basic_iterator
 
-        for site_json in iterator():
-            yield site_json
+        yield from iterator()
 
     def producer(self, *, auto_discard: bool = True) -> Iterator[WhatsMyNameSite]:
         """
@@ -235,7 +233,7 @@ class WMNCollection:
 
 def create_wmn_collection(
     schema: WhatsMyNameSchema,
-    rule_set: WMNRuleSet | None=None,
+    rule_set: WMNRuleSet | None = None,
 ) -> WMNCollection:
     """
     build a WMNCollection from a WhatsMyNameSchema and optional rule set.
@@ -287,14 +285,14 @@ async def fetch_wmn_schema(
     ValueError
         If the response is not valid JSON or does not conform to the schema.
     """
-
-    response = await client.get(url, timeout=15)
+    safe_url = httpx.URL(url)
+    response = await client.get(safe_url, timeout=15)
     response.raise_for_status()
 
     try:
         data = response.json()
         if not isinstance(data, dict):
-            raise ValueError('Response JSON is not an object')
+            raise TypeError('Response JSON is not an object')
         return data  # type: ignore
     except Exception as exc:
         raise ValueError(f'Failed to parse WhatsMyName JSON: {exc}') from exc

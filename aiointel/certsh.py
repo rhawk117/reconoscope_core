@@ -9,7 +9,7 @@ into a structured format, returning the SubdomainResult dataclass from the
 results gathered.
 '''
 import asyncio
-from reconoscope import http
+from aiointel import http
 import dataclasses as dc
 
 @dc.dataclass(slots=True)
@@ -63,7 +63,7 @@ class CertshBackend:
             }
         )
 
-    @http.retry_policy(attempts=5, delay=2.0)
+    @http.retry_policy(attempts=1, delay=2.0)
     async def fetchcert(self, domain: str) -> list[dict]:
         params = {
             'q': f'%.{domain}',

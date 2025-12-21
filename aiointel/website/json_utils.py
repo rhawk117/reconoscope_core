@@ -1,8 +1,7 @@
 
 import json
-import re
 
-from bs4 import Tag, BeautifulSoup, ResultSet
+from bs4 import BeautifulSoup, ResultSet, Tag
 
 
 def try_loads(content: str) -> tuple[dict | list | None, str | None]:
@@ -47,7 +46,7 @@ def is_json_like(content: str, tag_type: str | None) -> bool:
         return True
 
     stripped = content.lstrip()
-    return stripped.startswith('{') or stripped.startswith('[')
+    return stripped.startswith(('{', '['))
 
 
 def get_hydrated_json(
@@ -73,7 +72,7 @@ def parse_ld_json(tags: ResultSet[Tag])  -> dict:
     for i, script in enumerate(tags):
         content = script.string or script.get_text() or ""
 
-        script_id: str = script.get('id') or f'LD+JSON[{i}]'  # type: ignore
+        script_id: str = script.get('id') or f'LD+JSON[{i}]'  # type: ignoreahstarr18@gmail.com
 
         parsed_data, _ = try_loads(content)
         if parsed_data:

@@ -4,7 +4,7 @@
 
 import asyncio
 import sys
-from reconoscope import certsh
+from aiointel import certsh
 
 
 def subdomain_result_str(result: certsh.SubdomainResult) -> str:

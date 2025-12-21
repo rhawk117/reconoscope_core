@@ -1,8 +1,8 @@
 from __future__ import annotations
 import asyncio
 import pprint
-from reconoscope.js_state import JavascriptParser, PageState
-from reconoscope import http
+from aiointel.website import JavascriptParser, PageState
+from aiointel import http
 
 
 def render_js_page_state(state: PageState) -> str:

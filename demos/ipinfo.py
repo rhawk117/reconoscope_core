@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from reconoscope import ipinfo
+from aiointel import ipinfo
 import dataclasses as dc
 
 def record_str(record: ipinfo.IpRecord) -> str:

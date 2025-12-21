@@ -5,15 +5,15 @@ from typing import NamedTuple, Self
 
 import httpx
 import os
-from reconoscope import http
-from reconoscope.wmn._collection import (
+from aiointel import http
+from aiointel.wmn._collection import (
     WMNCollection,
     WMNRuleSet,
     create_wmn_collection,
     load_wmn_json_schema,
     fetch_wmn_collection
 )
-from reconoscope.wmn._schema import WhatsMyNameSite, WMNMethods
+from aiointel.wmn._schema import WhatsMyNameSite, WMNMethods
 from concurrent.futures import ProcessPoolExecutor
 import dataclasses as dc
 
@@ -31,6 +31,17 @@ class WMNRequest:
     json_payload: dict | None = None
     content_bytes: bytes | None = None
 
+    @property
+    def safe_url(self) -> httpx.URL:
+        '''
+        Returns a safe httpx.URL object for the request URL.
+
+        Returns
+        -------
+        httpx.URL
+        '''
+        return httpx.URL(self.url)
+
     def get_http_stream(self, client: httpx.AsyncClient):
         '''
         Creates a httpx request stream using the instance
@@ -46,21 +57,21 @@ class WMNRequest:
         if self.method == 'GET':
             return client.stream(
                 method=self.method,
-                url=self.url,
+                url=self.safe_url,
                 headers=self.headers,
             )
 
         if self.json_payload is not None:
             return client.stream(
                 method=self.method,
-                url=self.url,
+                url=self.safe_url,
                 headers=self.headers,
                 json=self.json_payload,
             )
 
         return client.stream(
             method=self.method,
-            url=self.url,
+            url=self.safe_url,
             headers=self.headers,
             content=self.content_bytes,
         )
@@ -487,6 +498,8 @@ class UsernameScanner:
                     all_results.extend(results)
                 except Exception as exc:
                     logger.error(f'Error in worker process: {exc}')
+                else:
+                    logger.info('Successfully completed a worker process.')
 
         if success_only:
             return list(filter(

@@ -1,7 +1,9 @@
 import dataclasses as dc
 import re
 from typing import NamedTuple
+
 import bs4
+
 
 def _get_tag_attr(tag: bs4.Tag, *attrs) -> str | None:
     '''
@@ -88,6 +90,7 @@ def get_site_metadata(soup: bs4.BeautifulSoup) -> Metadata:
     Parameters
     ----------
     soup : bs4.BeautifulSoup
+        the BeautifulSoup object representing the HTML document.
 
     Returns
     -------
@@ -135,9 +138,6 @@ def get_package_list(soup: bs4.BeautifulSoup) -> PagePackages:
     from <script> tags. Also identifies CDN-like resources based on
     common URL patterns and the presence of the `crossorigin` attribute.
 
-    Parameters
-    ----------
-    soup : bs4.BeautifulSoup
 
     Returns
     -------
@@ -251,9 +251,11 @@ def analyze_javascript_code(scripts: bs4.ResultSet[bs4.Tag]) -> JavascriptTextDa
         for match in regexes.json_parse.finditer(content):
             if json_str := match.group('q'):
                 results.json_parse_strings.append(json_str)
+
         for match in regexes.fetch.finditer(content):
             if url := match.group('q'):
                 results.add_url(url)
+
         for match in regexes.xhr.finditer(content):
             if url := match.group('q'):
                 results.add_url(url)

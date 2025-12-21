@@ -4,11 +4,11 @@ import httpx
 import re
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Literal, NamedTuple, Self
+from typing import Any, Generator, Literal, NamedTuple, Self
 from bs4 import BeautifulSoup, ResultSet, Tag
 from urllib.parse import urljoin
-from reconoscope.js_state import json_utils
-from reconoscope import http
+from aiointel.website import json_utils
+from aiointel import http
 
 logging.basicConfig(
     level=logging.INFO,
@@ -101,52 +101,7 @@ class JSONBlobs:
     application_blobs: dict[str, dict] = field(default_factory=dict)
 
 
-    @classmethod
-    def from_soup(cls, tags: ResultSet[Tag]) -> Self:
 
-
-        return cls(
-            ld_blobs=ld_json,
-            application_blobs=application_json
-        )
-
-
-@dataclass(slots=True)
-class Meatdata:
-    title: str | None = None
-    description: str | None = None
-    keywords: list[str] = field(default_factory=list)
-    author: str | None = None
-
-    @classmethod
-    def from_soup(cls, soup: BeautifulSoup) -> Self:
-        title = soup.title.string if soup.title else None
-        description = None
-        keywords = []
-        author = None
-
-        desc_tag = soup.find('meta', attrs={'name': 'description'})
-        if desc_tag and 'content' in desc_tag.attrs:
-            description = desc_tag['content']
-
-        keywords_tag = soup.find('meta', attrs={'name': 'keywords'})
-        if keywords_tag and 'content' in keywords_tag.attrs:
-            keywords = [
-                kw.strip()
-                for kw in keywords_tag['content'].split(',')
-                if kw.strip()
-            ]
-
-        author_tag = soup.find('meta', attrs={'name': 'author'})
-        if author_tag and 'content' in author_tag.attrs:
-            author = author_tag['content']
-
-        return cls(
-            title=title,
-            description=description,
-            keywords=keywords,
-            author=author
-        )
 
 
 @dataclass(slots=True)
@@ -184,7 +139,6 @@ class PageState:
     anchors: list[str] = field(default_factory=list)
     scripts: list[ScriptDetails] = field(default_factory=list)
     inline_json: dict[str, Any] = field(default_factory=dict)
-    metadata: Meatdata = field(default_factory=Meatdata)
     total_scripts: int = 0
 
 
@@ -193,7 +147,7 @@ def get_anchors(base_url: str, soup: BeautifulSoup) -> list[str]:
     anchors = []
     for a in soup.find_all('a', href=True):
         href = a['href']
-        absolute_url = urljoin(base_url, href)
+        absolute_url = urljoin(base_url, str(href))
         anchors.append(absolute_url)
     return anchors
 
@@ -202,7 +156,7 @@ def is_dunder(var_name: str) -> bool:
     return var_name.startswith('__') and var_name.endswith('__')
 
 
-def iter_matches(expressions: list[re.Pattern], text: str):
+def iter_matches(expressions: list[re.Pattern], text: str) -> Generator[tuple[str | Any, ...], Any, None]:
     for pattern in expressions:
         for match in pattern.finditer(text):
             yield match.groups()

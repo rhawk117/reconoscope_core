@@ -1,12 +1,3 @@
-'''
-simple retry policy for http requests for reconoscope
-
-Raises
-------
-NoAttemptsLeftError
-    _raised from previous exception when all attempts are exhausted_
-'''
-
 import asyncio
 import functools
 import random
@@ -16,15 +7,16 @@ from typing import ParamSpec, TypeVar
 import httpcore
 import httpx
 
+from aiointel.core.exception import AioIntelError
+
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-class NoAttemptsLeftError(Exception):
-    ...
+class NoAttemptsLeftError(AioIntelError): ...
 
 
-class retry_policy:
+class retry_policy:  # noqa: N801
 
     _HTTPX_ERRORS = (
         ConnectionError,
