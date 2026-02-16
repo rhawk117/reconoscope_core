@@ -12,25 +12,24 @@ from aiointel.core.exception import AioIntelError
 P = ParamSpec("P")
 R = TypeVar("R")
 
+_HTTPX_ERRORS = (
+    ConnectionError,
+    asyncio.TimeoutError,
+    httpx.ConnectError,
+    httpx.ReadTimeout,
+    httpx.WriteError,
+    httpx.RemoteProtocolError,
+    httpx.PoolTimeout,
+    httpx.ProxyError,
+    httpx.NetworkError,
+    httpcore.ConnectError,
+)
+
 
 class NoAttemptsLeftError(AioIntelError): ...
 
 
 class retry_policy:  # noqa: N801
-
-    _HTTPX_ERRORS = (
-        ConnectionError,
-        asyncio.TimeoutError,
-        httpx.ConnectError,
-        httpx.ReadTimeout,
-        httpx.WriteError,
-        httpx.RemoteProtocolError,
-        httpx.PoolTimeout,
-        httpx.ProxyError,
-        httpx.NetworkError,
-        httpcore.ConnectError,
-    )
-
     def __init__(
         self,
         *,
@@ -67,14 +66,16 @@ class retry_policy:  # noqa: N801
         *args,
         **kwargs
     ) -> R:
+        global _HTTPX_ERRORS
+        httpx_errors = _HTTPX_ERRORS
         last_exc: BaseException | None = None
         for attempt_no in range(1, self.attempts + 1):
             try:
                 return await func(*args, **kwargs)
-            except self._HTTPX_ERRORS as exc:
+            except httpx_errors as exc:
                 if attempt_no == self.attempts:
                     raise NoAttemptsLeftError(
-                        f"Failed after {self.attempts} attempts: {exc}"
+                        f'Failed after {self.attempts} attempts: {exc}'
                     ) from exc
                 last_exc = exc
                 await asyncio.sleep(self.get_timeout(attempt_no))

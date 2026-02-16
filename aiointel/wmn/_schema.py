@@ -5,10 +5,9 @@ The data transfer objects for WhatsMyName module.
 from __future__ import annotations
 
 import dataclasses as dc
-from typing import Literal, TypedDict
 import urllib
 import urllib.parse
-
+from typing import Literal, TypedDict
 
 WMNMethods = Literal["GET", "POST"]
 

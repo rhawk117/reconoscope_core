@@ -8,16 +8,6 @@ import msgspec
 from ua_generator.data.version import VersionRange
 from ua_generator.options import Options
 
-
-@typing.runtime_checkable
-class ClientMiddleware(typing.Protocol):
-
-    async def on_request(self, request: httpx.Request) -> None: ...
-
-    async def on_response(self, request: httpx.Response) -> None: ...
-
-
-
 CertTypes = str | tuple[str, str] | tuple[str, str, str]
 SocketOptions = tuple[int, int, int]
 
@@ -90,14 +80,6 @@ class ClientHooks(msgspec.Struct):
 
     def add_response_hooks(self, *hooks: ResponseHook) -> None:
         self._on_response.append(*hooks)
-
-    def mount_middleware(self, middleware: ClientMiddleware) -> None:
-        self._on_request.append(middleware.on_request)
-        self._on_response.append(middleware.on_response)
-
-    def add_middleware(self, *middlewares: ClientMiddleware) -> None:
-        for mw in middlewares:
-            self.mount_middleware(mw)
 
     def to_events(self) -> dict:
         return {

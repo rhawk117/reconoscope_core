@@ -293,9 +293,10 @@ async def fetch_wmn_schema(
         data = response.json()
         if not isinstance(data, dict):
             raise TypeError('Response JSON is not an object')
-        return data  # type: ignore
     except Exception as exc:
         raise ValueError(f'Failed to parse WhatsMyName JSON: {exc}') from exc
+    
+    return data  # type: ignore
 
 
 def load_wmn_json_schema(pathname: str) -> WhatsMyNameSchema:
