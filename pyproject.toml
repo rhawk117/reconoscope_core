@@ -7,7 +7,7 @@ name = "reconoscope"
 version = "0.1.0"
 description = "The core library for Reconoscope OSINT tool"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.14.0",
     "dnspython[async]>=2.8.0",
@@ -21,3 +21,6 @@ package = true
 
 [tool.build.targets.wheel]
 packages = ["reconoscope"]
+
+[dependency-groups]
+dev = ["ruff>=0.15.1"]

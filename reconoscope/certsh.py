@@ -1,4 +1,4 @@
-'''
+"""
 **reconoscope.certsh**
 
 The CertSh client for querying subdomains from https://cert.sh.
@@ -7,10 +7,14 @@ When provided with a domain name, the CertShClient fetches associated
 subdomains by querying the CertSh service. It processes the JSON response
 into a structured format, returning the SubdomainResult dataclass from the
 results gathered.
-'''
+"""
+
 import asyncio
-from reconoscope import http
 import dataclasses as dc
+from collections.abc import Generator
+
+from reconoscope import http
+
 
 @dc.dataclass(slots=True)
 class SubdomainResult:
@@ -22,27 +26,24 @@ class SubdomainResult:
 def normalize_hostname(hostname: str) -> str:
     return hostname.strip().lower().rstrip('.')
 
-def iter_name_values(name_value: str, domain: str):
+
+def iter_name_values(name_value: str, domain: str) -> Generator[str]:
     for line in str(name_value).splitlines():
         hostname = normalize_hostname(line)
         if hostname and hostname != domain:
             yield hostname
 
-def walk_certsh_response(data: list[dict], domain: str):
-    '''
+
+def walk_certsh_response(data: list[dict], domain: str) -> Generator[str]:
+    """
     Walk the JSON response from cert.sh and yield subdomains
     by looking at the `name_value` and `common_name` fields
     to extract hostnames.
 
-    Parameters
-    ----------
-    data : list[dict]
-    domain : str
-
     Yields
     ------
     str
-    '''
+    """
     for entry in data:
         if name_value := entry.get('name_value'):
             yield from iter_name_values(name_value, domain)
@@ -60,7 +61,7 @@ class CertshBackend:
             config=config,
             headers={
                 'Accept': 'application/json',
-            }
+            },
         )
 
     @http.retry_policy(attempts=5, delay=2.0)
@@ -86,8 +87,7 @@ class CertshBackend:
         )
 
     async def gather_subdomains(self, domains: list[str]) -> dict[str, SubdomainResult]:
-        results = await asyncio.gather(*(
-            self.get_subdomains(domain)
-            for domain in domains
-        ))
+        results = await asyncio.gather(
+            *(self.get_subdomains(domain) for domain in domains)
+        )
         return {result.domain: result for result in results}

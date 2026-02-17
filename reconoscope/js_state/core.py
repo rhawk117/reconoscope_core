@@ -11,8 +11,7 @@ from reconoscope.js_state import json_utils
 from reconoscope import http
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ _PAGE_DATA_URL_PATTERNS: list[str] = [
     r'fetch\(["\']([^"\']+\.json)["\']',
 ]
 
+
 @dataclass(slots=True)
 class ParserOptions:
     window_regexes: list[re.Pattern]
@@ -46,7 +46,7 @@ class ParserOptions:
         *,
         window_regexes: list[str] | None = None,
         hydration_selectors: list[str] | None = None,
-        page_data_url_patterns: list[str] | None = None
+        page_data_url_patterns: list[str] | None = None,
     ) -> Self:
         global _WINDOW_EXPRESSIONS, _COMMON_SELECTORS, _PAGE_DATA_URL_PATTERNS
         window_regexes = window_regexes or []
@@ -55,20 +55,17 @@ class ParserOptions:
 
         window_regexes.extend(_WINDOW_EXPRESSIONS)
         window_pat = [
-            re.compile(pattern, re.MULTILINE | re.DOTALL)
-            for pattern in window_regexes
+            re.compile(pattern, re.MULTILINE | re.DOTALL) for pattern in window_regexes
         ]
         page_data_url_patterns.extend(_PAGE_DATA_URL_PATTERNS)
-        page_data_pats = [
-            re.compile(pattern)
-            for pattern in page_data_url_patterns
-        ]
+        page_data_pats = [re.compile(pattern) for pattern in page_data_url_patterns]
         hydration_selectors.extend(_COMMON_SELECTORS)
         return cls(
             window_regexes=window_pat,
             hydration_selectors=hydration_selectors,
-            page_data_url_patterns=page_data_pats
+            page_data_url_patterns=page_data_pats,
         )
+
 
 @dataclass(slots=True)
 class ScriptDetails:
@@ -83,11 +80,11 @@ class ScriptDetails:
 def parse_script_json(tags: ResultSet[Tag], type_: str) -> dict[str, dict]:
     results = {}
     for i, script in enumerate(tags):
-        content = script.string or script.get_text() or ""
+        content = script.string or script.get_text() or ''
 
         script_id = script.attrs.get('id') or script.attrs.get('data-id')
         if not script_id:
-            script_id = f'{type_}_{i+1}'
+            script_id = f'{type_}_{i + 1}'
 
         parsed_data, error = json_utils.try_loads(content)
         if parsed_data:
@@ -95,20 +92,16 @@ def parse_script_json(tags: ResultSet[Tag], type_: str) -> dict[str, dict]:
 
     return results
 
+
 @dataclass(slots=True)
 class JSONBlobs:
     ld_blobs: dict[str, dict] = field(default_factory=dict)
     application_blobs: dict[str, dict] = field(default_factory=dict)
 
-
     @classmethod
     def from_soup(cls, tags: ResultSet[Tag]) -> Self:
 
-
-        return cls(
-            ld_blobs=ld_json,
-            application_blobs=application_json
-        )
+        return cls(ld_blobs=ld_json, application_blobs=application_json)
 
 
 @dataclass(slots=True)
@@ -132,26 +125,19 @@ class Meatdata:
         keywords_tag = soup.find('meta', attrs={'name': 'keywords'})
         if keywords_tag and 'content' in keywords_tag.attrs:
             keywords = [
-                kw.strip()
-                for kw in keywords_tag['content'].split(',')
-                if kw.strip()
+                kw.strip() for kw in keywords_tag['content'].split(',') if kw.strip()
             ]
 
         author_tag = soup.find('meta', attrs={'name': 'author'})
         if author_tag and 'content' in author_tag.attrs:
             author = author_tag['content']
 
-        return cls(
-            title=title,
-            description=description,
-            keywords=keywords,
-            author=author
-        )
+        return cls(title=title, description=description, keywords=keywords, author=author)
 
 
 @dataclass(slots=True)
 class PageState:
-    '''
+    """
     Represents the extracted JavaScript state from a web page.
     Attributes
     ----------
@@ -175,7 +161,8 @@ class PageState:
         returned HTML.
     total_scripts : int
         The total number of script tags found on the page.
-    '''
+    """
+
     url: str
     ok: bool
     hydration: dict[str, Any]
@@ -186,7 +173,6 @@ class PageState:
     inline_json: dict[str, Any] = field(default_factory=dict)
     metadata: Meatdata = field(default_factory=Meatdata)
     total_scripts: int = 0
-
 
 
 def get_anchors(base_url: str, soup: BeautifulSoup) -> list[str]:
@@ -211,18 +197,18 @@ def iter_matches(expressions: list[re.Pattern], text: str):
 def get_script_tag_details(script_tag: Tag) -> ScriptDetails:
     tag_id = script_tag.get('id')
     tag_type = script_tag.get('type')
-    content = script_tag.string or script_tag.get_text() or ""
+    content = script_tag.string or script_tag.get_text() or ''
 
     preview = re.sub(r'\s+', ' ', content.strip())[:100]
     if len(content) > 100:
-        preview += "..."
+        preview += '...'
 
     details = ScriptDetails(
         tag_id=str(tag_id),
         tag_type=str(tag_type),
         content_length=len(content),
         parse_success=False,
-        parse_error=None
+        parse_error=None,
     )
 
     if not json_utils.is_json_like(content, str(tag_type)):
@@ -237,11 +223,11 @@ def get_script_tag_details(script_tag: Tag) -> ScriptDetails:
 
     return details
 
+
 class _WindowJSON(NamedTuple):
     var_name: str
     json: dict | list
     variable_type: Literal['hydration', 'inline']
-
 
 
 def iter_window_blobs(window_regexes: list[re.Pattern], text: str):
@@ -253,13 +239,12 @@ def iter_window_blobs(window_regexes: list[re.Pattern], text: str):
                 logger.debug('Could not parse window.%s: %s', var_name, error)
                 continue
             variable_type = 'hydration' if is_dunder(var_name) else 'inline'
-            yield _WindowJSON(
-                var_name,
-                parsed_data,
-                variable_type
-            )
+            yield _WindowJSON(var_name, parsed_data, variable_type)
 
-def collect_page_data_urls(page_data_url_patterns: list[re.Pattern], text: str, base_url: str) -> list[str]:
+
+def collect_page_data_urls(
+    page_data_url_patterns: list[re.Pattern], text: str, base_url: str
+) -> list[str]:
     urls = []
     for pattern in page_data_url_patterns:
         matches = pattern.findall(text)
@@ -275,8 +260,9 @@ async def get_text(client: httpx.AsyncClient, url: str) -> str:
         r.raise_for_status()
         return r.text
     except Exception as e:
-        logger.error(f"Failed to fetch {url}: {e}")
+        logger.error(f'Failed to fetch {url}: {e}')
         raise
+
 
 class JavascriptParser:
     def __init__(
@@ -290,9 +276,8 @@ class JavascriptParser:
 
     async def check_url(self, url: str) -> PageState:
         text = await get_text(self.client, url)
-        soup = BeautifulSoup(text, "html.parser")
+        soup = BeautifulSoup(text, 'html.parser')
         all_scripts = soup.find_all('script')
-
 
         hydration: dict[str, Any] = {}
         for selector in self.options.hydration_selectors:
@@ -307,14 +292,9 @@ class JavascriptParser:
                 inline_patterns[window_json.var_name] = window_json.json
 
         page_data_urls = collect_page_data_urls(
-            self.options.page_data_url_patterns,
-            text,
-            url
+            self.options.page_data_url_patterns, text, url
         )
-        script_details = [
-            get_script_tag_details(script)
-            for script in all_scripts
-        ]
+        script_details = [get_script_tag_details(script) for script in all_scripts]
         total_scripts = len(all_scripts)
         return PageState(
             url=url,
@@ -326,10 +306,5 @@ class JavascriptParser:
             scripts=script_details,
             inline_json=inline_patterns,
             total_scripts=total_scripts,
-            metadata=Meatdata.from_soup(soup)
+            metadata=Meatdata.from_soup(soup),
         )
-
-
-
-
-

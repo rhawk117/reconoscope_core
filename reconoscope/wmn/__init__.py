@@ -1,12 +1,16 @@
-'https://cert.sh''''
+(
+    'https://cert.sh'
+    """
 WhatsMyName (WMN) module for Reconoscope
 See: `reconoscope.wmn._scanner` for more details.
-'''
+"""
+)
+
 from reconoscope.wmn._scanner import (
     WMNResult,
     check_wmn_site,
     WMNRequest,
-    UsernameScanner
+    UsernameScanner,
 )
 from reconoscope.wmn._collection import (
     WMNCollection,
@@ -15,11 +19,7 @@ from reconoscope.wmn._collection import (
     fetch_wmn_collection,
     load_wmn_json_schema,
 )
-from reconoscope.wmn._schema import (
-    WhatsMyNameSite,
-    WhatsMyNameOptions,
-    WhatsMyNameEntry
-)
+from reconoscope.wmn._schema import WhatsMyNameSite, WhatsMyNameOptions, WhatsMyNameEntry
 
 __all__ = [
     'WMNResult',

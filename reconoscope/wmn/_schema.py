@@ -1,6 +1,6 @@
-'''
+"""
 The data transfer objects for WhatsMyName module.
-'''
+"""
 
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ import urllib
 import urllib.parse
 
 
-WMNMethods = Literal["GET", "POST"]
-
+WMNMethods = Literal['GET', 'POST']
 
 
 def normalize_url(site: WhatsMyNameSite, account: str) -> str:
@@ -40,10 +39,9 @@ def normalize_url(site: WhatsMyNameSite, account: str) -> str:
     return site.entry.uri_check.replace('{account}', encoded)
 
 
-
 @dc.dataclass(slots=True)
 class WhatsMyNameOptions:
-    '''
+    """
     The optional fields for a WhatsMyName entry.
 
     Attributes
@@ -63,7 +61,7 @@ class WhatsMyNameOptions:
 
     - protection: A list of protection mechanisms the site may have
     (e.g., "captcha", "cloudflare").
-    '''
+    """
 
     m_code: int | None = None
     uri_pretty: str | None = None
@@ -76,7 +74,7 @@ class WhatsMyNameOptions:
 
 @dc.dataclass(slots=True)
 class WhatsMyNameEntry:
-    '''
+    """
     The required fields for a WhatsMyName entry.
 
     Attributes
@@ -87,7 +85,7 @@ class WhatsMyNameEntry:
     - e_string: A string that must be present in the response for a valid username.
     - m_string: A string that must be absent in the response for a valid username.
     - cat: The category of the site (e.g., social, email, etc.).
-    '''
+    """
 
     name: str
     uri_check: str
@@ -98,9 +96,10 @@ class WhatsMyNameEntry:
 
 
 class WhatsMyNameResponse(TypedDict, total=False):
-    '''
+    """
     The response structure for a JSON site.
-    '''
+    """
+
     license: list[str]
     authors: list[str]
     categories: list[str]
@@ -109,19 +108,20 @@ class WhatsMyNameResponse(TypedDict, total=False):
 
 @dc.dataclass(slots=True, kw_only=True)
 class WhatsMyNameSite:
-    '''
+    """
     A WhatsMyName site entry, combining required and
     optional fields.
-    '''
+    """
+
     entry: WhatsMyNameEntry
     options: WhatsMyNameOptions
 
     @property
     def method(self) -> WMNMethods:
-        return "POST" if self.options.post_body else "GET"
+        return 'POST' if self.options.post_body else 'GET'
 
     def get_header(self, hdr_name: str) -> str | None:
-        '''
+        """
         Get a specific header value.
 
         Parameters
@@ -131,11 +131,11 @@ class WhatsMyNameSite:
         Returns
         -------
         str | None
-        '''
+        """
         return self.options.headers.get(hdr_name)
 
     def get_url(self, account: str) -> str:
-        '''
+        """
         Get the URL to check for the given account name.
 
         Parameters
@@ -145,12 +145,11 @@ class WhatsMyNameSite:
         Returns
         -------
         str
-        '''
+        """
         return normalize_url(self, account)
 
-
     def get_pretty_url(self, account: str) -> str | None:
-        '''
+        """
         Get the pretty URL for the given account name.
 
         Parameters
@@ -161,13 +160,13 @@ class WhatsMyNameSite:
         -------
         str | None
             The pretty url if set in the site options
-        '''
+        """
         if not self.options.uri_pretty:
             return None
         return normalize_url(self, account)
 
     def get_body(self, account: str) -> str | None:
-        '''
+        """
         Get the body to send with a POST request for the given account name.
 
         Parameters
@@ -178,23 +177,21 @@ class WhatsMyNameSite:
         -------
         str | None
             The body to send, or None if not a POST request.
-        '''
+        """
         if not self.options.post_body:
             return None
         return self.options.post_body.replace('{account}', account)
 
     @property
     def is_content_type_json(self) -> bool:
-        '''
+        """
         Check if the site expects or returns JSON content.
 
         Returns
         -------
         bool
-        '''
+        """
         content_type = self.get_header('Content-Type') or (
             self.get_header('content-type')
         )
         return content_type is not None and 'application/json' in content_type.lower()
-
-

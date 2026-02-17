@@ -1,30 +1,32 @@
 import asyncio
+import dataclasses as dc
 import json
 import logging
+import os
+from concurrent.futures import ProcessPoolExecutor
 from typing import NamedTuple, Self
 
 import httpx
-import os
+
 from reconoscope import http
 from reconoscope.wmn._collection import (
     WMNCollection,
     WMNRuleSet,
     create_wmn_collection,
-    load_wmn_json_schema,
-    fetch_wmn_collection
+    fetch_wmn_collection,
+    read_wmn_json_schema,
 )
 from reconoscope.wmn._schema import WhatsMyNameSite, WMNMethods
-from concurrent.futures import ProcessPoolExecutor
-import dataclasses as dc
 
 logger = logging.getLogger(__name__)
 
 
 @dc.dataclass(slots=True)
 class WMNRequest:
-    '''
+    """
     A request to send built from a WhatsMyNameSite and account name.
-    '''
+    """
+
     method: WMNMethods
     url: str
     headers: dict[str, str] = dc.field(default_factory=dict)
@@ -32,7 +34,7 @@ class WMNRequest:
     content_bytes: bytes | None = None
 
     def get_http_stream(self, client: httpx.AsyncClient):
-        '''
+        """
         Creates a httpx request stream using the instance
 
         Parameters
@@ -42,7 +44,7 @@ class WMNRequest:
         Returns
         -------
         The async httpx response stream.
-        '''
+        """
         if self.method == 'GET':
             return client.stream(
                 method=self.method,
@@ -66,14 +68,14 @@ class WMNRequest:
         )
 
     def load_body(self, body_string: str) -> None:
-        '''
+        """
         Load the body string into the request parts.
 
         Parameters
         ----------
         body_string : str
             The body string to load.
-        '''
+        """
         if not body_string:
             return
 
@@ -84,18 +86,13 @@ class WMNRequest:
 
     @classmethod
     def from_site(cls, site: WhatsMyNameSite, account: str) -> Self:
-        '''
+        """
         Create a WMNRequestParts from a WhatsMyNameSite and account name.
-
-        Parameters
-        ----------
-        site : WhatsMyNameSite
-        account : str
 
         Returns
         -------
         WMNRequestParts
-        '''
+        """
         method = site.method
         url = site.get_url(account)
         headers = site.options.headers.copy()
@@ -159,7 +156,8 @@ class _WMNStreamReader:
     async def check_stream(self, max_size_mb: int = 10) -> bool:
         """
         Streams a httpx.response and check for the presence of certain strings
-        in a very memory efficient manner.
+        in a very memory efficient manner. I was tired as fuck when I made
+        this so bare with me.
 
         Technical Details
         -----------------
@@ -204,11 +202,17 @@ class _WMNStreamReader:
                 await self._response.aclose()
                 return False
 
-            if self._need_positive and self._seen_positive_identifier and not self._need_negative:
+            if (
+                self._need_positive
+                and self._seen_positive_identifier
+                and not self._need_negative
+            ):
                 await self._response.aclose()
                 return True
 
-            self._tail = buffer[-self._overlap_boundary:] if self._overlap_boundary > 0 else b''
+            self._tail = (
+                buffer[-self._overlap_boundary :] if self._overlap_boundary > 0 else b''
+            )
 
         saw_positive = self._need_positive and self._seen_positive_identifier
         saw_negative = self._need_negative and self._seen_negative_identifier
@@ -271,12 +275,11 @@ async def check_wmn_site(
 
         try:
             success = await reader.check_stream()
-        except (
-            httpx.ReadTimeout,
-            httpx.TransportError
-        ):
+        except (httpx.ReadTimeout, httpx.TransportError):
             await response.aclose()
-            logger.warning(f'Timeout or transport error reading {site.entry.name} response')
+            logger.warning(
+                f'Timeout or transport error reading {site.entry.name} response'
+            )
             return WMNResult(
                 site=site.entry.name,
                 url=request.url,
@@ -299,21 +302,14 @@ async def _async_wmn_worker_process(
     concurrency_per_process: int,
     headers: dict[str, str],
 ) -> list[WMNResult]:
-    '''
+    """
     The async worker for a single process in the `UsernameScanner`
     uses a semaphore to limit concurrency.
-
-    Parameters
-    ----------
-    config : http.ClientConfig
-    chunk : list[WhatsMyNameSite]
-    username : str
-    concurrency_per_process : int
 
     Returns
     -------
     list[WMNResult]
-    '''
+    """
     async with http.ReconoscopeClient(config=config, headers=headers) as client:
         semaphore = asyncio.Semaphore(concurrency_per_process)
         results: list[WMNResult] = []
@@ -355,46 +351,39 @@ def _wmn_worker_sync(
     )
 
 
-
 def _get_proc_count(chunk_size: int) -> int:
     return max(1, os.cpu_count() or 1) * chunk_size // 100
+
 
 def filter_for_success(results: list[WMNResult]) -> list[WMNResult]:
     return [res for res in results if res.success]
 
+
+def _scanner_default_headers() -> dict[str, str]:
+    return {
+        'Accept': (
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+        ),
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+
+
+
+@dc.dataclass(slots=True)
 class UsernameScanner:
-    _WMN_DEFAULT_URL = (
+    chunk_size: int = 100
+    concurrency_per_process: int = 50
+    client_config: http.ClientConfig = dc.field(
+        default_factory=http.ClientConfig,
+    )
+    headers: dict[str, str] = dc.field(default_factory=_scanner_default_headers)
+    wmn_default_url: str = (
         'https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json'
     )
 
-    def __init__(
-        self,
-        *,
-        client_config: http.ClientConfig | None = None,
-        chunk_size: int = 100,
-        concurrency_per_process: int = 50,
-        headers: dict[str, str] | None = None,
-    ) -> None:
-        '''
-        Parameters
-        ----------
-        http_options : HttpOptions | None, optional
-            The HTTP options to use, by default None
-        chunk_size : int, optional
-            The number of sites to process per worker process, by default 100
-        concurrency_per_process : int, optional
-            The number of concurrent requests per worker process, by default 50
-        headers : dict[str, str] | None, optional
-            Additional headers to include in requests, by default None
-        '''
-        self.client_config = client_config or http.ClientConfig()
-        self.chunk_size = max(2, chunk_size)
-        self.concurrency_per_process = max(2, concurrency_per_process)
-        self.headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            **(headers or {}),
-        }
+    def __post_init__(self) -> None:
+        self.chunk_size = max(2, self.chunk_size)
+        self.concurrency_per_process = max(2, self.concurrency_per_process)
 
     async def get_collection(
         self,
@@ -403,7 +392,7 @@ class UsernameScanner:
         wmn_json_file_path: str | None = None,
         wmn_json_url: str | None = None,
     ) -> WMNCollection:
-        '''
+        """
         Loads or fetches the WhatsMyName collection.
         If no parameters are provided, it fetches the latest schema from the
         default URL `_WMN_DEFAULT_URL`.
@@ -421,12 +410,13 @@ class UsernameScanner:
         -------
         WMNCollection
             _description_
-        '''
+        """
         if wmn_json_file_path:
-            schema = load_wmn_json_schema(wmn_json_file_path)
+            schema = read_wmn_json_schema(wmn_json_file_path)
             return create_wmn_collection(schema, ruleset)
 
-        wmn_json_url = wmn_json_url or self._WMN_DEFAULT_URL
+        wmn_json_url = wmn_json_url or self.wmn_default_url
+
         async with httpx.AsyncClient(timeout=15) as client:
             collection = await fetch_wmn_collection(
                 client,
@@ -441,9 +431,9 @@ class UsernameScanner:
         username: str,
         *,
         collection: WMNCollection | None = None,
-        success_only: bool = True
+        success_only: bool = True,
     ) -> list[WMNResult]:
-        '''
+        """
         Scan for a username across the WhatsMyName collection.
 
         Parameters
@@ -459,12 +449,15 @@ class UsernameScanner:
         Returns
         -------
         list[WMNResult]
-        '''
+        """
         collection = collection or await self.get_collection()
         event_loop = asyncio.get_running_loop()
 
         proccesses = _get_proc_count(self.chunk_size)
-        logger.info(f'Starting scan for "{username}" on {len(collection.sites)} sites using {proccesses} processes')
+        logger.info(
+            f'Starting scan for "{username}" on {len(collection.sites)} '
+            f'sites using {proccesses} processes'
+        )
 
         with ProcessPoolExecutor(max_workers=proccesses) as pool:
             proccesses = []
@@ -489,9 +482,6 @@ class UsernameScanner:
                     logger.error(f'Error in worker process: {exc}')
 
         if success_only:
-            return list(filter(
-                lambda res: res.success,
-                all_results
-            ))
+            return list(filter(lambda res: res.success, all_results))
 
         return all_results

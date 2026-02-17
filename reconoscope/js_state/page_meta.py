@@ -3,8 +3,9 @@ import re
 from typing import NamedTuple
 import bs4
 
+
 def _get_tag_attr(tag: bs4.Tag, *attrs) -> str | None:
-    '''
+    """
     used internall for getting tag attributes based on
     a list of possible attribute names to check.
 
@@ -17,7 +18,7 @@ def _get_tag_attr(tag: bs4.Tag, *attrs) -> str | None:
     Returns
     -------
     str | None
-    '''
+    """
     for attr in attrs:
         if candidate := tag.get(attr):
             return str(candidate).strip()
@@ -31,6 +32,7 @@ _COMMON_SECURITY_META_TAGS = {
     'strict-transport-security',
     'referrer',
 }
+
 
 @dc.dataclass(slots=True)
 class SiteDetails:
@@ -80,8 +82,9 @@ class Metadata:
 
         self.extras[prop] = content
 
+
 def get_site_metadata(soup: bs4.BeautifulSoup) -> Metadata:
-    '''
+    """
     Extracts site metadata including standard meta tags, Open Graph tags,
     and common security-related meta tags.
 
@@ -92,7 +95,7 @@ def get_site_metadata(soup: bs4.BeautifulSoup) -> Metadata:
     Returns
     -------
     Metadata
-    '''
+    """
     metadata = Metadata()
     metadata.site_details = get_site_details(soup)
 
@@ -101,23 +104,20 @@ def get_site_metadata(soup: bs4.BeautifulSoup) -> Metadata:
 
     return metadata
 
+
 @dc.dataclass(slots=True)
 class PagePackages:
-    css: list[str] = dc.field(
-        default_factory=list
-    )
-    javascript: list[str] = dc.field(
-        default_factory=list
-    )
-    cdn_like: list[str] = dc.field(
-        default_factory=list
-    )
+    css: list[str] = dc.field(default_factory=list)
+    javascript: list[str] = dc.field(default_factory=list)
+    cdn_like: list[str] = dc.field(default_factory=list)
+
 
 def _is_cdn_like(url: str, tag: bs4.Tag, cdn_indicators: list[str]) -> bool:
     if _get_tag_attr(tag, 'crossorigin') is not None:
         return True
 
     return any(indicator in url for indicator in cdn_indicators)
+
 
 def _is_css_like(tag: bs4.Tag) -> bool:
     if tag.name != 'link':
@@ -129,8 +129,9 @@ def _is_css_like(tag: bs4.Tag) -> bool:
 
     return 'stylesheet' in rel.lower().split()
 
+
 def get_package_list(soup: bs4.BeautifulSoup) -> PagePackages:
-    '''
+    """
     Extracts CSS "packages" from <link> tags and JavaScript packages
     from <script> tags. Also identifies CDN-like resources based on
     common URL patterns and the presence of the `crossorigin` attribute.
@@ -142,7 +143,7 @@ def get_package_list(soup: bs4.BeautifulSoup) -> PagePackages:
     Returns
     -------
     PagePackages
-    '''
+    """
     cdn_indicators = [
         'cdn.',
         '.cdn.',
@@ -153,7 +154,6 @@ def get_package_list(soup: bs4.BeautifulSoup) -> PagePackages:
         'code.jquery.com',
         'unpkg.com',
     ]
-
 
     pkgs = PagePackages()
 
@@ -174,38 +174,33 @@ def get_package_list(soup: bs4.BeautifulSoup) -> PagePackages:
     return pkgs
 
 
-_FETCH_RE = (
-    r"""
+_FETCH_RE = r"""
     fetch\(\s*(?P<q>
     `(?:\\.|[^`])*?` # template literal
     | "(?:\\.|[^"])*?" # double-quoted
     | '(?:\\.|[^'])*?' # single-quoted
     )"""
-)
-_JSON_PARSE_RE = (
-    r"""
+_JSON_PARSE_RE = r"""
     JSON\.parse\(\s*(?P<q>
     `\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])\s*`   # template literal containing JSON
     | "\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])\s*"   # double-quoted JSON
     | '\s*(?:\{[\s\S]*?\}|\[[\s\S]*?\])\s*'   # single-quoted JSON
     )\s*\)
     """
-)
-_XHR_RE = (
-    r"""
+_XHR_RE = r"""
     (?:new\s+XMLHttpRequest\(\)|fetch\(\s*)\.open\(\s*(?P<q>
       `(?:\\.|[^`])*?` # template literal
     | "(?:\\.|[^"])*?" # double-quoted
     | '(?:\\.|[^'])*?' # single-quoted
     )
     """
-)
 
 
 class _ScriptTextRegexes(NamedTuple):
     fetch: re.Pattern
     json_parse: re.Pattern
     xhr: re.Pattern
+
 
 @dc.dataclass(slots=True)
 class JavascriptTextData:
@@ -218,17 +213,17 @@ class JavascriptTextData:
             self.urls.append(url)
 
 
-
 def _create_js_text_regexes() -> _ScriptTextRegexes:
     opts = re.DOTALL | re.MULTILINE | re.VERBOSE
     return _ScriptTextRegexes(
         fetch=re.compile(_FETCH_RE, opts),
         json_parse=re.compile(_JSON_PARSE_RE, opts),
-        xhr=re.compile(_XHR_RE, opts)
+        xhr=re.compile(_XHR_RE, opts),
     )
 
+
 def analyze_javascript_code(scripts: bs4.ResultSet[bs4.Tag]) -> JavascriptTextData:
-    '''
+    """
     Extracts URLs from `fetch` / XMLRequests and JSON.parse() strings
     to identify content initialized on page load and potential API endpoints.
 
@@ -239,10 +234,9 @@ def analyze_javascript_code(scripts: bs4.ResultSet[bs4.Tag]) -> JavascriptTextDa
     Returns
     -------
     JavascriptTextData
-    '''
+    """
     regexes = _create_js_text_regexes()
     results = JavascriptTextData()
-
 
     for script in scripts:
         if not script.get_text() or script.get('src'):

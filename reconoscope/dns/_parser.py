@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import functools
@@ -29,38 +28,38 @@ from reconoscope.dns._records import (
 )
 
 DNSRecord = (
-    ARecord |
-    AAAARecord |
-    MXRecord |
-    NSRecord |
-    CNAMERecord |
-    SOARecord |
-    TXTRecord |
-    PTRRecord
+    ARecord
+    | AAAARecord
+    | MXRecord
+    | NSRecord
+    | CNAMERecord
+    | SOARecord
+    | TXTRecord
+    | PTRRecord
 )
 
+
 def _name(n: Any) -> str:
-    return "" if n is None else str(n).rstrip(".")
+    return '' if n is None else str(n).rstrip('.')
 
 
 def _txt_join(r: R_TXT) -> str:
-    if getattr(r, "strings", None):
+    if getattr(r, 'strings', None):
         parts = [
-            s.decode(errors="ignore") if isinstance(
-                s, (bytes, bytearray)) else str(s)
+            s.decode(errors='ignore') if isinstance(s, (bytes, bytearray)) else str(s)
             for s in r.strings
         ]
-        return "".join(parts)
+        return ''.join(parts)
     return r.to_text().strip('"')
 
 
 def _ttl(ans: dns.resolver.Answer) -> int | None:
-    return getattr(ans, "ttl", None)
+    return getattr(ans, 'ttl', None)
 
 
 @functools.singledispatch
 def parse_rdata(r: dns.rdata.Rdata, ans: dns.resolver.Answer) -> DNSRecord:
-    '''
+    """
     A parser for the rdata of a DNS record, using singledispatch to handle
     different types for record
 
@@ -75,8 +74,8 @@ def parse_rdata(r: dns.rdata.Rdata, ans: dns.resolver.Answer) -> DNSRecord:
     -------
     object
         _The resolved record object_
-    '''
-    return r.to_text() if hasattr(r, "to_text") else str(r) # type: ignore
+    """
+    return r.to_text() if hasattr(r, 'to_text') else str(r)  # type: ignore
 
 
 @parse_rdata.register
@@ -130,7 +129,9 @@ def _(r: R_PTR, ans: dns.resolver.Answer) -> PTRRecord:
     return PTRRecord(target=_name(r.target), ttl=_ttl(ans))
 
 
-def parse_and_append(bag: DomainRecords, rtype: dns.rdatatype.RdataType, record: Any) -> None:
+def parse_and_append(
+    bag: DomainRecords, rtype: dns.rdatatype.RdataType, record: Any
+) -> None:
     match rtype:
         case dns.rdatatype.A:
             bag.A.append(cast(ARecord, record))

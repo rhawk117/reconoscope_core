@@ -1,4 +1,3 @@
-
 import json
 import re
 
@@ -7,21 +6,18 @@ from bs4 import Tag, BeautifulSoup, ResultSet
 
 def try_loads(content: str) -> tuple[dict | list | None, str | None]:
     if not content or not content.strip():
-        return None, "Empty content"
+        return None, 'Empty content'
 
     try:
         parsed = json.loads(content.strip())
     except (json.JSONDecodeError, Exception) as e:
-        error_msg = f"JSON parse error in JSON: {str(e)[:100]}"
+        error_msg = f'JSON parse error in JSON: {str(e)[:100]}'
         return None, error_msg
 
     return parsed, None
 
-def flatten_dict(
-    current: dict | list,
-    max_depth: int = 5,
-    parent: str = ''
-) -> set[str]:
+
+def flatten_dict(current: dict | list, max_depth: int = 5, parent: str = '') -> set[str]:
     keys = set()
     if max_depth <= 0 or not isinstance(current, dict):
         return keys
@@ -30,14 +26,9 @@ def flatten_dict(
         cur_key = f'{parent}.{key}' if parent else key
         keys.add(cur_key)
         if isinstance(value, dict):
-            keys.update(
-                flatten_dict(
-                    value,
-                    max_depth - 1,
-                    cur_key
-                )
-            )
+            keys.update(flatten_dict(value, max_depth - 1, cur_key))
     return keys
+
 
 def is_json_like(content: str, tag_type: str | None) -> bool:
     if not content or not content.strip():
@@ -68,10 +59,11 @@ def get_hydrated_json(
     parsed, _ = try_loads(content)
     return tag_id, parsed or {}
 
-def parse_ld_json(tags: ResultSet[Tag])  -> dict:
+
+def parse_ld_json(tags: ResultSet[Tag]) -> dict:
     results = {}
     for i, script in enumerate(tags):
-        content = script.string or script.get_text() or ""
+        content = script.string or script.get_text() or ''
 
         script_id: str = script.get('id') or f'LD+JSON[{i}]'  # type: ignore
 
@@ -80,5 +72,3 @@ def parse_ld_json(tags: ResultSet[Tag])  -> dict:
             results[script_id] = parsed_data
 
     return results
-
-

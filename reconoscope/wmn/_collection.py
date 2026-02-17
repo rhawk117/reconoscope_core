@@ -3,15 +3,16 @@ from __future__ import annotations
 import dataclasses as dc
 import json
 import logging
-from collections.abc import Iterator
 from pathlib import Path
-from typing import NamedTuple, TypedDict
-
-import httpx
+from typing import TYPE_CHECKING, NamedTuple, TypedDict
 
 from reconoscope import http
-from reconoscope.http import retry_policy
 from reconoscope.wmn._schema import WhatsMyNameEntry, WhatsMyNameOptions, WhatsMyNameSite
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    import httpx
 
 log = logging.getLogger(__name__)
 
@@ -31,16 +32,13 @@ class _WMNLoadResult(NamedTuple):
     site: WhatsMyNameSite | None
     error: Exception | None
 
+
 def try_parse_wmn_json(
     json_entry: dict,
 ) -> _WMNLoadResult:
     """
     Does a best-effort attempt to load a WhatsMyNameSite from a JSON
     dictionary, returning either the site or an error if one occurred.
-
-    Parameters
-    ----------
-    json_entry : dict
 
     Returns
     -------
@@ -64,13 +62,13 @@ def try_parse_wmn_json(
         extras = WhatsMyNameOptions(**json_entry)
     except TypeError as e:
         return _WMNLoadResult(
-            None,
-            ValueError(f'Invalid WMN options or unexpected key: {e}')
+            None, ValueError(f'Invalid WMN options or unexpected key: {e}')
         )
 
     site = WhatsMyNameSite(entry=entry, options=extras)
 
     return _WMNLoadResult(site, None)
+
 
 @dc.dataclass(slots=True)
 class WMNRuleSet:
@@ -137,7 +135,6 @@ class WMNCollection:
     authors: set[str] = dc.field(default_factory=set)
     rule_set: WMNRuleSet | None = None
 
-
     @property
     def size(self) -> int:
         """
@@ -156,13 +153,7 @@ class WMNCollection:
                 continue
             yield cur
 
-    def _basic_iterator(self) -> Iterator[dict]:
-        for entry in self.sites:
-            if self.rule_set and not self.rule_set.pre_filter(entry):
-                continue
-            yield entry
-
-    def iter_site_json(self, *, auto_discard: bool = True) -> Iterator[dict]:
+    def iter_site_json(self) -> Iterator[dict]:
         """
         Iterate over all sites in the collection, applying any rule set filters.
 
@@ -170,16 +161,12 @@ class WMNCollection:
         ------
         Iterator[WhatsMyNameSite]
         """
+        for entry in self.sites:
+            if self.rule_set and not self.rule_set.pre_filter(entry):
+                continue
+            yield entry
 
-        if auto_discard:
-            iterator = self._auto_discard_iterator
-        else:
-            iterator = self._basic_iterator
-
-        for site_json in iterator():
-            yield site_json
-
-    def producer(self, *, auto_discard: bool = True) -> Iterator[WhatsMyNameSite]:
+    def producer(self) -> Iterator[WhatsMyNameSite]:
         """
         build WhatsMyNameSite instances from the collection, applying any rule set
         filters.
@@ -188,7 +175,7 @@ class WMNCollection:
         ------
         Iterator[WhatsMyNameSite]
         """
-        for site_json in self.iter_site_json(auto_discard=auto_discard):
+        for site_json in self.iter_site_json():
             result = try_parse_wmn_json(site_json)
             if not (site := result.site):
                 log.warning(f'Skipping invalid site entry: {result.error}')
@@ -208,7 +195,6 @@ class WMNCollection:
         ------
         Iterator[list[WhatsMyNameSite]]
         """
-
         if chunk_size <= 0:
             raise ValueError('chunk_size must be greater than 0')
 
@@ -235,7 +221,7 @@ class WMNCollection:
 
 def create_wmn_collection(
     schema: WhatsMyNameSchema,
-    rule_set: WMNRuleSet | None=None,
+    rule_set: WMNRuleSet | None = None,
 ) -> WMNCollection:
     """
     build a WMNCollection from a WhatsMyNameSchema and optional rule set.
@@ -261,8 +247,7 @@ def create_wmn_collection(
 
 @http.retry_policy(attempts=3)
 async def fetch_wmn_schema(
-    client: http.ReconoscopeClient | httpx.AsyncClient,
-    url: str
+    client: http.ReconoscopeClient | httpx.AsyncClient, url: str
 ) -> WhatsMyNameSchema:
     """
     Fetch the WhatsMyName JSON schema from a URL.
@@ -284,7 +269,7 @@ async def fetch_wmn_schema(
     ------
     httpx.HTTPError
         If the request fails.
-    ValueError
+    ValueError, TypeError
         If the response is not valid JSON or does not conform to the schema.
     """
 
@@ -293,14 +278,16 @@ async def fetch_wmn_schema(
 
     try:
         data = response.json()
-        if not isinstance(data, dict):
-            raise ValueError('Response JSON is not an object')
-        return data  # type: ignore
     except Exception as exc:
         raise ValueError(f'Failed to parse WhatsMyName JSON: {exc}') from exc
 
+    if not isinstance(data, dict):
+        raise TypeError('Response JSON is not an object')
 
-def load_wmn_json_schema(pathname: str) -> WhatsMyNameSchema:
+    return data  # type: ignore
+
+
+def read_wmn_json_schema(pathname: str) -> WhatsMyNameSchema:
     """
     Load the WhatsMyName JSON schema from a local file.
 
